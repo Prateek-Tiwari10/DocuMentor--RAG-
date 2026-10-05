@@ -1,0 +1,41 @@
+corpus:
+  repo: https://github.com/langchain-ai/docs.git
+  branch: main
+  paths: [src/oss/langgraph, src/oss/concepts, src/snippets/code-samples]
+  page_dirs: [src/oss/langgraph, src/oss/concepts]
+  snippet_dir: src/snippets/code-samples
+  raw_dir: data/raw/langchain-docs
+  clean_dir: data/clean
+  url_base: https://docs.langchain.com/oss   # + /python/... or /javascript/...
+  languages: [python, js]
+  default_language: python
+  url_segment: {python: python, js: javascript}
+  min_view_tokens: 50
+
+embedding:
+  model: BAAI/bge-m3
+  fast_model: sentence-transformers/all-MiniLM-L6-v2
+  tokenizer: BAAI/bge-m3
+  batch_size: 16
+  device: auto            # auto -> cuda if available else cpu
+
+chunking:
+  strategy: parent_child  # recursive | parent_child
+  prepend_headings: true  # prefix "Page > H2 > H3" to the text that gets embedded
+  heading_break_ratio: 0.6
+  recursive:
+    size: 500
+    overlap: 75
+  parent_child:
+    child_size: 200
+    child_overlap: 30
+    parent_max: 1500
+    child_top_k: 20       # children fetched before grouping into parents
+
+store:
+  chroma_path: data/chroma
+  parents_path: data/parents
+  batch_size: 1000
+
+retrieval:
+  top_k: 5
