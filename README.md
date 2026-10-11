@@ -29,8 +29,18 @@ python scripts/ingest.py --strategy both --reset
 python scripts/search.py "How do I add memory to a StateGraph?" --strategy both --k 3
 python scripts/search.py "How do I add memory to a StateGraph?" --strategy parent_child --k 3 --language js
 python scripts/eval_retrieval.py --strategy both --k 5
-pytest -q
 ```
+
+### Results
+
+Mini golden set (15 Python questions), `BAAI/bge-m3`, k=5, run on 2026-10-11:
+
+| Strategy | R@1 | R@3 | R@5 | MRR | Avg tokens returned |
+|---|---|---|---|---|---|
+| recursive | 0.60 | 0.73 | 0.73 | 0.656 | 2,011 |
+| parent_child | 0.53 | 0.73 | 0.80 | 0.650 | 3,301 |
+
+A result is a hit when it comes from the expected page and the expected section appears in its heading path or as a heading inside the chunk.
 
 ### Layout
 
