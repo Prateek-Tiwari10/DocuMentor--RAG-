@@ -44,6 +44,7 @@ def compute_metrics(golden: list[dict], answers: dict, oos: list[dict]) -> dict:
     live = [a for a in g + o if not a["cache_hit"] and a["refusal_reason"] != "low_score"]
     with_usage = [a for a in g + o if a["usage"]]
     mean = lambda xs: round(statistics.mean(xs)) if xs else None
+    no_wait = [a["timings"]["total_ms"] - a["timings"]["wait_ms"] for a in live]
     return {
         "answered_rate": sum(not a["refused"] for a in g) / len(g),
         "expected_source_cited": len(cited_hit) / len(g),
@@ -55,6 +56,9 @@ def compute_metrics(golden: list[dict], answers: dict, oos: list[dict]) -> dict:
         "false_refusals": [q["id"] for q, a in zip(golden, g) if a["refused"]],
         "latency_p50_ms": percentile([a["timings"]["total_ms"] for a in live], 0.5),
         "latency_p95_ms": percentile([a["timings"]["total_ms"] for a in live], 0.95),
+        "latency_no_wait_p50_ms": percentile(no_wait, 0.5),
+        "latency_no_wait_p95_ms": percentile(no_wait, 0.95),
+        "wait_ms_mean": mean([a["timings"]["wait_ms"] for a in live]),
         "retrieve_ms_mean": mean([a["timings"]["retrieve_ms"] for a in live]),
         "generate_ms_mean": mean([a["timings"]["generate_ms"] for a in live]),
         "latency_excluded_cache_hits": sum(a["cache_hit"] for a in g + o),
@@ -178,7 +182,8 @@ def print_metrics(m: dict) -> None:
         ("False refusals", ", ".join(m["false_refusals"]) or "none"),
         ("Latency p50 / p95", f"{m['latency_p50_ms']} / {m['latency_p95_ms']} ms "
                               f"({m['latency_excluded_cache_hits']} cache hits excluded)"),
-        ("Mean retrieve / generate", f"{m['retrieve_ms_mean']} / {m['generate_ms_mean']} ms"),
+        ("Same, without waiting", f"{m['latency_no_wait_p50_ms']} / {m['latency_no_wait_p95_ms']} ms"),
+        ("Mean retrieve / wait / gen", f"{m['retrieve_ms_mean']} / {m['wait_ms_mean']} / {m['generate_ms_mean']} ms"),
         ("Mean tokens in / out", f"{m['prompt_tokens_mean']} / {m['completion_tokens_mean']}"),
     ]
     print()

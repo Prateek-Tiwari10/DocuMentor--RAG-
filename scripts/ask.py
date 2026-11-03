@@ -6,7 +6,8 @@ from documentor.pipeline import Answer, answer
 
 def footer(a: Answer) -> str:
     t, u = a.timings, a.usage
-    parts = [f"retrieve {t['retrieve_ms']:,} ms", f"generate {t['generate_ms']:,} ms", f"total {t['total_ms']:,} ms"]
+    parts = [f"retrieve {t['retrieve_ms']:,} ms", f"generate {t['generate_ms']:,} ms", f"wait {t['wait_ms']:,} ms",
+             f"total {t['total_ms']:,} ms"]
     if u:
         parts.append(f"tokens {u['prompt_tokens']:,} in / {u['completion_tokens']:,} out")
     parts += ["cache hit" if a.cache_hit else "cache miss", f"strategy {a.strategy}", f"model {a.model}"]

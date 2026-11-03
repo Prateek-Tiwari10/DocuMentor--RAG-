@@ -21,7 +21,7 @@ class Answer:
     blocks: list[dict]        # everything that was in the context
     invalid_citations: list[int]
     uncited: bool
-    timings: dict             # retrieve_ms, generate_ms, total_ms
+    timings: dict             # retrieve_ms, wait_ms, generate_ms (excludes wait_ms), total_ms (includes it)
     usage: dict               # prompt_tokens, completion_tokens, reasoning_tokens?, remaining_tokens?
     cache_hit: bool
     model: str
@@ -65,7 +65,7 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
     min_score = gen.get("min_score")
     if min_score is not None and (not results or results[0]["score"] < min_score):
         result = Answer(**base, text=gen["refusal_message"], refused=True, refusal_reason="low_score",
-                        sources=[], blocks=[], timings={"retrieve_ms": retrieve_ms, "generate_ms": 0,
+                        sources=[], blocks=[], timings={"retrieve_ms": retrieve_ms, "wait_ms": 0, "generate_ms": 0,
                                                         "total_ms": ms(start)},
                         usage={}, cache_hit=False, model=cfg["llm"]["model"])
         log_answer(result, cfg)
@@ -76,7 +76,7 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
     llm = llm or default_llm(cfg)
     gen_start = time.perf_counter()
     out = llm.complete(messages, show_reasoning=show_reasoning, use_cache=use_cache)
-    generate_ms = ms(gen_start)
+    generate_ms = max(0, ms(gen_start) - out.wait_ms)
 
     parsed = parse_answer(out.text, blocks, gen["refusal_sentinel"])
     usage = {"prompt_tokens": out.prompt_tokens, "completion_tokens": out.completion_tokens}
@@ -93,7 +93,8 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
         refusal_reason="model" if parsed.refused else None,
         sources=[] if parsed.refused else sources_for(parsed, blocks),
         blocks=blocks,
-        timings={"retrieve_ms": retrieve_ms, "generate_ms": generate_ms, "total_ms": ms(start)},
+        timings={"retrieve_ms": retrieve_ms, "wait_ms": out.wait_ms, "generate_ms": generate_ms,
+                 "total_ms": ms(start)},
         usage=usage,
         cache_hit=out.cache_hit,
         model=out.model,

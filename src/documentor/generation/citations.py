@@ -5,6 +5,7 @@ from dataclasses import dataclass
 log = logging.getLogger(__name__)
 
 CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+FULLWIDTH_CITATION = re.compile(r"【(\d+)(?:†[^】]*)?】")   # GPT-OSS writes 【1】 or 【1†L1-L7】
 FENCE = re.compile(r"^\s*```", re.M)
 INLINE_CODE = re.compile(r"(`[^`\n]+`)")
 
@@ -59,7 +60,8 @@ def parse_answer(text: str, blocks: list[dict], sentinel: str) -> Parsed:
 
     def outside_inline(seg: str) -> str:
         parts = INLINE_CODE.split(seg)
-        return "".join(p if i % 2 else CITATION.sub(fix, p) for i, p in enumerate(parts))
+        return "".join(p if i % 2 else CITATION.sub(fix, FULLWIDTH_CITATION.sub(r"[\1]", p))
+                       for i, p in enumerate(parts))
 
     out = "".join(seg if code else outside_inline(seg) for seg, code in split_fences(text))
     if invalid:

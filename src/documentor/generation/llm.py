@@ -30,6 +30,7 @@ class LLMResult:
     cache_hit: bool
     remaining_tokens: int | None   # from x-ratelimit-remaining-tokens, if present
     reasoning_tokens: int | None = None
+    wait_ms: int = 0               # rate-limiter waits and retry sleeps
 
 
 class LLM(Protocol):
@@ -126,8 +127,11 @@ class GroqLLM:
             if hit:
                 return hit
 
+        wait_start = time.perf_counter()
         self.limiter.wait(count_message_tokens(messages, self.encoding) + params["max_completion_tokens"])
+        limiter_ms = int((time.perf_counter() - wait_start) * 1000)
         result = self._call_with_retries(messages, params)
+        result.wait_ms += limiter_ms
         self.limiter.record(result.prompt_tokens + result.completion_tokens)
         if not result.text and result.finish_reason == "length":
             raise GenerationError("completion budget used up by reasoning; "
@@ -138,9 +142,12 @@ class GroqLLM:
 
     def _call_with_retries(self, messages: list[dict], params: dict) -> LLMResult:
         attempt = 0
+        slept = 0.0
         while True:
             try:
-                return self._call(messages, params)
+                result = self._call(messages, params)
+                result.wait_ms = int(slept * 1000)
+                return result
             except groq.RateLimitError as e:
                 err, delay = e, retry_after(e) or backoff(attempt)
             except (groq.APITimeoutError, groq.APIConnectionError, groq.InternalServerError) as e:
@@ -153,7 +160,9 @@ class GroqLLM:
             attempt += 1
             if attempt > self.cfg["max_retries"]:
                 raise err
+            sleep_start = time.perf_counter()
             self.sleep(delay)
+            slept += time.perf_counter() - sleep_start
 
     def _call(self, messages: list[dict], params: dict) -> LLMResult:
         start = time.perf_counter()

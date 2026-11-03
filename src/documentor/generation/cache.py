@@ -27,7 +27,7 @@ class ResponseCache:
             return None
         data = json.loads(path.read_text())
         data.pop("created_at", None)
-        return replace(LLMResult(**data), cache_hit=True)
+        return replace(LLMResult(**data), cache_hit=True, wait_ms=0)
 
     def put(self, key: str, result) -> None:
         path = self._path(key)
