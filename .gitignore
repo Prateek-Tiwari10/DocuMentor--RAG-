@@ -11,3 +11,7 @@ tests/
 
 # Phase 2 grading sheets stay local
 eval/results/*_review.md
+
+# Local review copies
+reviewed code/
+eval.zip

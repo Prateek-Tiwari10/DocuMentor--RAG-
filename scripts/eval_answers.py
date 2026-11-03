@@ -15,10 +15,11 @@ from documentor.pipeline import answer
 CLOSED_BOOK_SYSTEM = ("You are a helpful assistant for the LangGraph library. "
                       "Answer concisely and include {language_name} code.")
 RESULTS_DIR = "eval/results"
+OUTDATED_PREFIX = "Closed-book used an outdated or invented API?"
 GRADE_LINES = {
     "rag": "RAG correct? (Y / P / N):",
     "closed": "Closed-book correct? (Y / P / N):",
-    "outdated": "Closed-book used an outdated or invented API? (yes / no, which):",
+    "outdated": f"{OUTDATED_PREFIX} (yes / no, which):",
 }
 
 
@@ -153,12 +154,13 @@ def summarize_review(path) -> dict:
         else:
             for mode in ("rag", "closed"):
                 if line.startswith(GRADE_LINES[mode]):
-                    value = line[len(GRADE_LINES[mode]):].strip()[:1].upper()
+                    value = line[len(GRADE_LINES[mode]):].strip().lstrip("*").strip()[:1].upper()
                     grade = value if value in ("Y", "P", "N") else "ungraded"
                     for g in ("overall", current["tag"]):
                         counts[g][mode][grade] += 1
-            if line.startswith(GRADE_LINES["outdated"]):
-                outdated += line[len(GRADE_LINES["outdated"]):].strip().lower().startswith("yes")
+            if line.startswith(OUTDATED_PREFIX):
+                value = line[len(OUTDATED_PREFIX):].removeprefix(" (yes / no, which):")
+                outdated += value.strip().lstrip("*").strip().lower().startswith("yes")
     return {"counts": counts, "closed_book_outdated_api": outdated}
 
 
