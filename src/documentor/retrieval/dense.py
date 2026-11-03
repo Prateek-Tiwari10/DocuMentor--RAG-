@@ -43,7 +43,8 @@ def _heading_str(path) -> str:
 
 
 def search(query: str, strategy: str, k: int | None = None, language: str | None = None,
-           model: str | None = None, embedder=None, store=None, parents=None) -> list[dict]:
+           model: str | None = None, embedder=None, store=None, parents=None,
+           child_top_k: int | None = None) -> list[dict]:
     cfg = load_config()
     k = k or cfg["retrieval"]["top_k"]
     language = language or cfg["corpus"]["default_language"]
@@ -58,7 +59,8 @@ def search(query: str, strategy: str, k: int | None = None, language: str | None
                    for h in hits]
     elif strategy == "parent_child":
         parents = parents or get_parents(strategy, model)
-        hits = store.query(query_vec, cfg["chunking"]["parent_child"]["child_top_k"], language=language)
+        child_top_k = child_top_k or cfg["chunking"]["parent_child"]["child_top_k"]
+        hits = store.query(query_vec, child_top_k, language=language)
         results = []
         for group in group_by_parent(hits, k):
             parent = parents.get(group["parent_id"]) or {}

@@ -8,3 +8,6 @@ eval/results/*.json
 
 private/
 tests/
+
+# Phase 2 grading sheets stay local
+eval/results/*_review.md

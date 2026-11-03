@@ -39,3 +39,26 @@ store:
 
 retrieval:
   top_k: 5
+  strategy: recursive            # default for search() and the pipeline
+
+llm:
+  provider: groq
+  model: openai/gpt-oss-120b
+  temperature: 0.5               # Groq recommends 0.5–0.7 for reasoning models
+  reasoning_effort: low          # low | medium | high
+  max_completion_tokens: 1500    # includes reasoning tokens
+  timeout_s: 60
+  max_retries: 5
+  tpm_limit: 8000                # free plan; raise if your org limit is higher
+  cache: true
+  cache_path: data/cache/llm
+
+generation:
+  context_max_tokens: 3000
+  budget_encoding: o200k_base    # tiktoken encoding used to count prompt tokens
+  refusal_sentinel: NOT_IN_DOCS
+  refusal_message: "I couldn't find this in the LangGraph documentation."
+  min_score: null                # retrieval pre-check; null = off until calibrated
+
+logging:
+  query_log: data/logs/queries.jsonl

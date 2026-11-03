@@ -4,3 +4,6 @@ chromadb>=0.5
 pyyaml
 tqdm
 pytest
+groq>=0.30
+python-dotenv>=1.0
+tiktoken>=0.7

@@ -1,0 +1,5 @@
+{"id": "oos01", "question": "How do I enable CORS for all routes in FastAPI?", "language": "python"}
+{"id": "oos02", "question": "What's the best learning rate for fine-tuning Llama with LoRA?", "language": "python"}
+{"id": "oos03", "question": "How do I create an evaluation dataset in LangSmith?", "language": "python"}
+{"id": "oos04", "question": "How do I set up horizontal pod autoscaling in Kubernetes?", "language": "python"}
+{"id": "oos05", "question": "How do I run a LangGraph graph from a Rust program?", "language": "python"}
