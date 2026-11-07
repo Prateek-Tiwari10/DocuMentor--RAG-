@@ -7,6 +7,7 @@ from documentor.config import load_config, resolve
 from documentor.generation.citations import parse_answer, sources_for
 from documentor.generation.llm import LLM, get_llm
 from documentor.generation.prompt import build_context, build_messages
+from documentor.retrieval import TRACE_FIELDS
 
 
 @dataclass
@@ -58,7 +59,8 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
     results = search_fn(question, strategy, k=k, language=language)
     retrieve_ms = ms(start)
     retrieved = [{"id": r.get("id") or r.get("parent_id"), "score": r.get("score"),
-                  "heading_path": r.get("heading_path"), "page_slug": r.get("page_slug")} for r in results]
+                  "heading_path": r.get("heading_path"), "page_slug": r.get("page_slug"),
+                  **{f: r.get(f) for f in TRACE_FIELDS}} for r in results]
 
     base = dict(question=question, language=language, strategy=strategy, invalid_citations=[],
                 uncited=False, reasoning=None, retrieved=retrieved)
@@ -107,11 +109,15 @@ def log_answer(result: Answer, cfg: dict) -> None:
     row = asdict(result)
     row.pop("reasoning")
     row["timestamp"] = datetime.now().isoformat(timespec="seconds")
+    retrieval = cfg.get("retrieval", {})
     row["config"] = {
         "model": cfg["llm"]["model"],
         "temperature": cfg["llm"]["temperature"],
         "reasoning_effort": cfg["llm"]["reasoning_effort"],
         "context_max_tokens": cfg["generation"]["context_max_tokens"],
+        "retrieval_mode": retrieval.get("mode"),
+        "rerank": retrieval.get("rerank"),
+        "reranker_model": retrieval.get("reranker_model") if retrieval.get("rerank") else None,
     }
     path = resolve(cfg["logging"]["query_log"])
     path.parent.mkdir(parents=True, exist_ok=True)

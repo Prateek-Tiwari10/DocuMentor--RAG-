@@ -2,6 +2,7 @@ import argparse
 
 from documentor.config import load_config
 from documentor.pipeline import Answer, answer
+from documentor.retrieval.hybrid import trace_line
 
 
 def footer(a: Answer) -> str:
@@ -19,6 +20,7 @@ def show_blocks(a: Answer) -> None:
     for b in a.blocks:
         flag = "  (truncated)" if b["truncated"] else ""
         print(f"[{b['n']}] {b['score']:.3f}  {b['heading_path']} ({b['page_slug']})  {b['tokens']} tok{flag}")
+        print(f"     {trace_line(a.retrieved[b['n'] - 1])}")
     print()
 
 
@@ -32,7 +34,10 @@ def main() -> None:
     ap.add_argument("--show-context", action="store_true")
     ap.add_argument("--show-reasoning", action="store_true")
     ap.add_argument("--no-cache", action="store_true", help="skip reading the cache (still writes)")
+    ap.add_argument("--mode", choices=["dense", "bm25", "hybrid"], default=cfg["retrieval"]["mode"])
+    ap.add_argument("--rerank", action=argparse.BooleanOptionalAction, default=cfg["retrieval"]["rerank"])
     args = ap.parse_args()
+    cfg["retrieval"] |= {"mode": args.mode, "rerank": args.rerank}  # search() and the query log read these
 
     a = answer(args.question, language=args.language, strategy=args.strategy, k=args.k,
                show_reasoning=args.show_reasoning, use_cache=not args.no_cache)
