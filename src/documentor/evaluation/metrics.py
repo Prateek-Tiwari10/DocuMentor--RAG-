@@ -3,6 +3,7 @@ import statistics
 
 from documentor.evaluation import first_hit_rank, is_hit
 from documentor.generation.citations import CITATION, FULLWIDTH_CITATION, split_fences
+from documentor.generation.prompt import build_context
 
 CITATION_ONLY = re.compile(r"^(?:\s*\[\d+(?:\s*,\s*\d+)*\]\s*)+$")
 LABEL = re.compile(r"^(?:#+\s.*|\*\*[^*]+\*\*:?)$")
@@ -20,6 +21,16 @@ def retrieval_metrics(results_by_q: dict[str, list[dict]], golden: list[dict]) -
     ranks = [first_hit_rank(results_by_q[q["id"]], q) for q in golden]
     tokens = [sum(r.get("tokens") or 0 for r in results_by_q[q["id"]]) for q in golden]
     return summarize_ranks(ranks, tokens) | {"ranks": {q["id"]: r for q, r in zip(golden, ranks)}}
+
+
+def recall_in_context(results_by_q: dict[str, list[dict]], golden: list[dict], max_tokens: int, encoding: str) -> dict:
+    """R@ctx: a hit counts only if it survives the context budget, because a block that is cut never reaches the model."""
+    hits, kept = {}, []
+    for q in golden:
+        _, blocks = build_context(results_by_q[q["id"]], max_tokens, encoding)
+        hits[q["id"]] = any(is_hit(b, q) for b in blocks)
+        kept.append(sum(b["tokens"] for b in blocks))
+    return {"R@ctx": sum(hits.values()) / len(golden), "hits": hits, "avg_tokens_in_context": round(statistics.mean(kept))}
 
 
 def cited_blocks(a: dict) -> list[dict]:
