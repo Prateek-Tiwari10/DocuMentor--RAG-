@@ -98,9 +98,9 @@ def warn_if_stale(index: BM25Index, count: int) -> bool:
 
 
 def build_from_store(store, language: str, cfg: dict, corpus_commit: str = "") -> BM25Index:
-    """Index exactly what Chroma holds for one language, so ids match the vector store."""
+    """Index exactly what the vector store holds for one language, so ids match."""
     prepend = cfg["chunking"]["prepend_headings"]
-    chunks = store.by_language(language)
+    chunks = store.get_all(language)
     texts = [make_embed_text(c.get("title") or "", c.get("heading_path") or "", c["text"], prepend) for c in chunks]
     return BM25Index(cfg["bm25"]["k1"], cfg["bm25"]["b"]).build(
         [c["id"] for c in chunks], texts, collection=store.name, language=language, corpus_commit=corpus_commit)

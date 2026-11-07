@@ -8,3 +8,4 @@ groq>=0.30
 python-dotenv>=1.0
 tiktoken>=0.7
 rank_bm25>=0.2.2
+qdrant-client>=1.10

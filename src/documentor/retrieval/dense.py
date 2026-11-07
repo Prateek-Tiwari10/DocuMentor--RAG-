@@ -3,7 +3,8 @@ from functools import lru_cache
 from documentor.config import collection_name, load_config, resolve
 from documentor.embed.embedder import Embedder
 from documentor.retrieval import TRACE_FIELDS
-from documentor.store.chroma_store import ChromaStore
+from documentor.store.base import VectorStore
+from documentor.store.base import get_store as backend_store
 from documentor.store.parent_store import ParentStore
 
 RESULT_FIELDS = ("page_slug", "language", "url", "title", "heading_path", "tokens", "text")
@@ -16,8 +17,8 @@ def get_embedder(model: str) -> Embedder:
 
 
 @lru_cache(maxsize=4)
-def get_store(strategy: str, model: str) -> ChromaStore:
-    return ChromaStore(resolve(load_config()["store"]["chroma_path"]), collection_name(strategy, model))
+def get_store(strategy: str, model: str) -> VectorStore:
+    return backend_store(load_config(), collection_name(strategy, model))
 
 
 @lru_cache(maxsize=4)

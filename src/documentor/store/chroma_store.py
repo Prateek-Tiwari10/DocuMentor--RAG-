@@ -55,7 +55,7 @@ class ChromaStore:
         return [{**meta, "id": chunk_id, "text": doc}
                 for chunk_id, doc, meta in zip(res["ids"], res["documents"], res["metadatas"])]
 
-    def by_language(self, language: str) -> list[dict]:
+    def get_all(self, language: str) -> list[dict]:
         return self._rows(self.collection.get(where={"language": language}, include=["documents", "metadatas"]))
 
     def by_ids(self, ids: list[str]) -> list[dict]:
@@ -63,8 +63,25 @@ class ChromaStore:
             return []
         return self._rows(self.collection.get(ids=ids, include=["documents", "metadatas"]))
 
-    def count(self) -> int:
-        return self.collection.count()
+    def page_ids(self, page_slug: str, language: str) -> list[str]:
+        where = {"$and": [{"page_slug": page_slug}, {"language": language}]}
+        return self.collection.get(where=where, include=[])["ids"]
 
-    def count_language(self, language: str) -> int:
+    def delete_page(self, page_slug: str, language: str) -> int:
+        ids = self.page_ids(page_slug, language)
+        if ids:
+            self.collection.delete(ids=ids)
+        return len(ids)
+
+    def count(self, language: str | None = None) -> int:
+        if language is None:
+            return self.collection.count()
         return len(self.collection.get(where={"language": language}, include=[])["ids"])
+
+    def batches(self, size: int = 1000):
+        """Ids, embeddings, documents and metadata in batches, for the Qdrant migration."""
+        total = self.collection.count()
+        for offset in range(0, total, size):
+            res = self.collection.get(include=["embeddings", "documents", "metadatas"], limit=size, offset=offset)
+            chunks = self._rows(res)
+            yield chunks, [list(map(float, e)) for e in res["embeddings"]]

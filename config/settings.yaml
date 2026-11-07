@@ -33,7 +33,10 @@ chunking:
     child_top_k: 20       # children fetched before grouping into parents
 
 store:
+  backend: qdrant               # chroma | qdrant; Step 4 switches it after the parity check
   chroma_path: data/chroma
+  qdrant_path: data/qdrant
+  qdrant_url: null              # Phase 6: set to use a Qdrant server instead of local mode
   parents_path: data/parents
   batch_size: 1000
 

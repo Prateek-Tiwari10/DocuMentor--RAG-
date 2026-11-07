@@ -21,7 +21,7 @@ def get_index(strategy: str, model: str, language: str) -> BM25Index:
     if not path.exists():
         raise FileNotFoundError(f"No BM25 index at {path}. Run scripts/build_bm25.py first.")
     index = BM25Index.load(path, cfg["bm25"]["k1"], cfg["bm25"]["b"])
-    warn_if_stale(index, get_store(strategy, model).count_language(language))
+    warn_if_stale(index, get_store(strategy, model).count(language))
     return index
 
 
