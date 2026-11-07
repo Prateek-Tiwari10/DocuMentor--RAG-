@@ -261,3 +261,95 @@ python scripts/eval_all.py --no-ragas              # own metrics only, no judge 
 
 - `src/documentor/evaluation/` is now a package: `golden.py` loads and checks the golden set, `metrics.py` has the own metrics, `ragas_eval.py` has the RAGAS scorer, cache and budget stop, `agreement.py` has agreement, kappa and the cut-off search, and `report.py` builds the report and the comparison.
 - `scripts/eval_all.py` is the one evaluation command. `eval/baselines/phase3.json` is the saved baseline.
+
+## Phase 4 — Hybrid retrieval
+
+Phase 4 adds a keyword retriever (BM25) next to the dense one, merges the two lists with Reciprocal Rank Fusion (RRF), and can rerank the merged list with a cross-encoder:
+
+`query → dense top 50 + BM25 top 50 → RRF → top 20 → cross-encoder → top 5 (→ parents) → context`
+
+Ten setups were compared, and the default is now **`recursive` · hybrid, no reranker**. The reranker step and the parent step are skipped in this setup.
+
+### Run
+
+```bash
+python scripts/build_bm25.py --strategy both     # rebuild after every ingest
+python scripts/search.py "How do I use add_conditional_edges?" --mode hybrid --explain
+python scripts/search.py "How do I use add_conditional_edges?" --mode hybrid --rerank --reranker fast --explain
+python scripts/eval_retrieval.py --matrix --k 5 --deep 50 --device cpu
+python scripts/eval_retrieval.py --apply-decision eval/results/phase4_<stamp>.json
+```
+
+`--mode` is `dense`, `bm25` or `hybrid`; `--rerank` adds a cross-encoder (`full` is `BAAI/bge-reranker-v2-m3`, `fast` is `cross-encoder/ms-marco-MiniLM-L-6-v2`). `--explain` prints each result's dense rank, BM25 rank, fused score and rerank score. The BM25 index lives in `data/bm25/`, one JSON file per collection and language. It indexes the same heading-prefixed text that is embedded. Words are lowercased and stopwords dropped, and an identifier is also split into its parts, so `add_conditional_edges` and `StateGraph` match `conditional` and `state`.
+
+| Index | Chunks | Vocabulary |
+|---|---|---|
+| `recursive` · Python | 599 | 5,494 |
+| `recursive` · JS | 562 | 5,146 |
+| `parent_child` · Python | 1,357 | 5,494 |
+| `parent_child` · JS | 1,242 | 5,144 |
+
+### Results
+
+Run on 2026-11-05 on a Kaggle CPU machine (4 cores), 30 golden questions, k=5, corpus 2caf896. R@ctx counts a hit only if the expected block survives the 3,000-token context budget, because a block that is cut never reaches the model.
+
+| # | Config | R@5 | R@ctx | MRR | Tokens in context | p95 ms |
+|---|---|---|---|---|---|---|
+| 1 | recursive · dense (old default) | 0.83 | 0.83 | 0.739 | 1,571 | 450 |
+| 2 | recursive · bm25 | 0.80 | 0.80 | 0.671 | 1,586 | 16 |
+| **3** | **recursive · hybrid (new default)** | **0.93** | **0.93** | **0.780** | **1,591** | **478** |
+| 4 | recursive · hybrid · fast reranker | 0.83 | 0.83 | 0.778 | 1,566 | 3,687 |
+| 5 | recursive · hybrid · full reranker | 0.90 | 0.90 | 0.817 | 1,628 | 70,193 |
+| 6 | parent_child · dense | 0.93 | 0.87 | 0.672 | 2,343 | 367 |
+| 7 | parent_child · bm25 | 0.87 | 0.87 | 0.694 | 2,446 | 17 |
+| 8 | parent_child · hybrid | 0.93 | 0.93 | 0.742 | 2,324 | 374 |
+| 9 | parent_child · hybrid · fast reranker | 0.97 | 0.97 | 0.803 | 2,340 | 2,704 |
+| 10 | parent_child · hybrid · full reranker | 0.97 | 0.97 | 0.829 | 2,348 | 51,466 |
+
+Identifier questions name an API, error code or file, such as `get_stream_writer` or `langgraph.json` (12 of 30):
+
+| Config | Identifier R@ctx (12) | Other R@ctx (18) |
+|---|---|---|
+| recursive · dense | 0.92 | 0.78 |
+| recursive · bm25 | 0.83 | 0.78 |
+| recursive · hybrid | 1.00 | 0.89 |
+| parent_child · hybrid · fast reranker | 1.00 | 0.94 |
+
+### Decision
+
+The rule keeps the simpler setup unless a more expensive one gains at least 2 questions on R@ctx or 0.05 on MRR, without losing 2 questions or 0.05 MRR, and a reranking setup must stay under 2,000 ms at p95 on CPU. On 30 questions one question is 3.3 points, which is noise.
+
+**recursive · hybrid: R@ctx 0.83 → 0.93 (+3 questions), MRR 0.739 → 0.780, p95 478 ms.** Rejected:
+
+- recursive · bm25: lower (R@ctx −1 question, MRR −0.068).
+- Every reranker setup: CPU p95 of 2,704–70,193 ms is over the 2,000 ms cap. Even ignoring the cap, the best of them, parent_child · hybrid · full, gains only 1 question on R@ctx over recursive · hybrid, so none would have passed the gain rule.
+- parent_child · dense and parent_child · bm25: lower (R@ctx −2 questions).
+- parent_child · hybrid: no clear gain (R@ctx +0, MRR −0.038), with about 46% more tokens in context.
+
+**A question BM25 rescued:** x03 (graceful shutdown) ranked 12th for dense search and 1st for BM25, so the merged list puts it at 4. q07 (dense 10, BM25 3) and q14 (dense 15, BM25 9) were rescued the same way. No question fell out of the top 5, but q18 dropped from rank 1 to 4 and x02 from 2 to 5.
+
+**Still missed:** q05 (token streaming) ranks 11th and x04 (DeltaChannel) ranks 29th in the merged list.
+
+**Score threshold:** the hybrid top-1 score is an RRF score, and golden and out-of-scope questions overlap (lowest golden 0.028, highest out-of-scope 0.032), so `generation.min_score` stays off.
+
+### End-to-end check
+
+With the new default, on 2026-11-07:
+
+- "Why is all my conversation history gone after restarting the server when I use InMemorySaver?" (q14, which dense search missed) is answered, and the answer cites the expected *Persistence > Troubleshooting common issues* block. That block was dense rank 15 and BM25 rank 9, and the merged list puts it 5th.
+- "How do I add memory to a StateGraph?" is answered with checkpointer and store examples, citing two blocks from the memory page.
+- "How do I create an evaluation dataset in LangSmith?" is refused, as it should be.
+
+### Findings
+
+- **BM25 alone is worse than dense, but the two miss different questions.** That is why fusion gains 3 questions while each retriever on its own is at 0.80–0.83.
+- **The rerankers are too slow on CPU.** The full reranker takes about 55 s per query on 4 cores, so it needs a GPU to be practical.
+- **The fast reranker hurts `recursive`.** It drops R@ctx from 0.93 to 0.83 (q07, q14 and x02 fall out). It was trained on web search passages (MS MARCO), which may explain why it ranks code docs worse than the fused order.
+
+### Layout
+
+- `src/documentor/retrieval/bm25.py` builds, saves and searches the BM25 index.
+- `src/documentor/retrieval/fusion.py` has Reciprocal Rank Fusion.
+- `src/documentor/retrieval/rerank.py` wraps the cross-encoders.
+- `src/documentor/retrieval/hybrid.py` wires dense, BM25, fusion, reranking and parent grouping together.
+- `scripts/build_bm25.py` builds the index, and `scripts/eval_retrieval.py --matrix` runs the comparison.
