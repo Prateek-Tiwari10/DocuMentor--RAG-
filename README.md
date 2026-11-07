@@ -353,3 +353,98 @@ With the new default, on 2026-11-07:
 - `src/documentor/retrieval/rerank.py` wraps the cross-encoders.
 - `src/documentor/retrieval/hybrid.py` wires dense, BM25, fusion, reranking and parent grouping together.
 - `scripts/build_bm25.py` builds the index, and `scripts/eval_retrieval.py --matrix` runs the comparison.
+
+## Phase 5 — Conversations, language routing and index updates
+
+Phase 5 makes DocuMentor conversational, routes each question to the Python or JS docs automatically, moves the vectors to Qdrant behind a store interface, and updates the index without re-embedding unchanged pages:
+
+`message → language → standalone question → hybrid retrieval → answer`
+
+History is used only to rewrite a follow-up. The answer model still sees one standalone question, with the unchanged Phase 2 prompt.
+
+### Run
+
+```bash
+python scripts/chat.py                              # interactive; /lang python|js|auto, /reset, /history, /exit
+python scripts/chat.py --script eval/demo_chat.txt  # one message per line, for demo rehearsal
+python scripts/build_language_vocab.py
+python scripts/eval_conversations.py
+python scripts/migrate_to_qdrant.py                 # copy Chroma's vectors into Qdrant; --check compares both
+python scripts/update_index.py --init               # once, for an existing index
+python scripts/update_index.py [--no-pull] [--dry-run]
+```
+
+`ask.py` stays single-question.
+
+### Follow-up questions
+
+`eval/conversations.jsonl` has 12 two-turn conversations: 9 follow-ups that can't be understood without turn 1, and 3 topic switches. Turn 1 is a golden question. The set was drafted by an LLM from the cleaned Python pages, covering 10 pages, and every expected section was checked automatically against the docs. No person has verified it. Turn-2 retrieval with the default config, on 2026-11-07:
+
+| Mode | R@ctx | MRR | Follow-up R@ctx (9) | Topic-switch R@ctx (3) | Rewrite p95 |
+|---|---|---|---|---|---|
+| `none` (the raw message) | 0.58 (7) | 0.444 | 0.56 (5) | 0.67 (2) | — |
+| `concat` (previous question + message) | 0.67 (8) | 0.274 | 0.78 (7) | 0.33 (1) | — |
+| `llm` (`gpt-oss-20b` rewrite) | 0.58 (7) | 0.486 | 0.56 (5) | 0.67 (2) | 666 ms |
+
+**Decision: `none`.** The Phase 4 rule needs a gain of 2 conversations or 0.05 MRR without a loss. `concat` gains 1 conversation but loses 0.171 MRR, because the old question pushes the right block down. It also loses c10, a topic switch that the raw message finds at rank 1. `llm` gains 0.042 MRR and no conversations.
+
+- **The LLM rewriter is too cautious.** It returned 4 of 9 follow-ups word for word ("Which checkpointer should I use for that in production?") and only dropped "And" from a fifth, which the prompt's "return it unchanged if already standalone" rule allows.
+- **A good rewrite:** "How do I use it from inside a graph node?" became "How do I use an InMemoryStore with embeddings from inside a LangGraph node?", which moved a miss to rank 2.
+- **A bad one:** adding "in LangGraph" to c09 pushed its section out of the top 5.
+- **Raw follow-ups often work anyway,** because BM25 matches their content words ("restart", "thread", "delete").
+
+Each rewrite costs about 450 tokens on `gpt-oss-20b`, which has its own rate limit, separate from the answer model's.
+
+### Language routing
+
+`detect_language()` is rule-based and returns a reason with every decision. It checks, in order:
+
+1. A language passed by the caller, or set with `/lang`.
+2. Explicit words: TypeScript, JavaScript, npm, Node.js, `@langchain/langgraph`, Python, pip and others.
+3. Code identifiers that appear in only one view of the docs.
+4. The conversation's previous language.
+5. Python, the default.
+
+The identifier lists are built from the cleaned docs (`data/language_vocab.json`): **576 Python-only** identifiers (`add_edge`, `TypedDict`, `add_conditional_edges`, ...) and **510 JS-only** ones (`addNode`, `StateSchema`, `addConditionalEdges`, ...). Identifiers in both views, such as `StateGraph` or `thread_id`, are neutral.
+
+**Golden-set check:** all 30 golden questions route to Python. The spec's word list included `node`, which would have sent 6 of them to JS ("pick the next node", "unit test one node"), because "node" is core LangGraph vocabulary. Only `node.js` and `nodejs` count.
+
+### Qdrant
+
+`VectorStore` has two backends: `ChromaStore` and `QdrantStore` (local mode at `data/qdrant`; set `store.qdrant_url` for a server). The migration copies ids, vectors, text and metadata from Chroma without re-embedding. All 8 collection-and-language counts matched, for example 599 recursive Python chunks in both. Qdrant point ids are the 16-hex chunk ids read as integers, and the original id stays in the payload.
+
+Parity check on 30 golden and 5 out-of-scope questions:
+
+| Check | Result |
+|---|---|
+| Dense top-5 overlap, recursive / parent_child | 1.000 / 0.994 |
+| Largest score difference | 0.000001 |
+| Default config (recursive · hybrid) on Chroma | R@ctx 0.933, MRR 0.780 |
+| Default config on Qdrant | R@ctx 0.933, MRR 0.780 |
+
+The one difference is oos04 on parent_child: Qdrant's exact local search found a chunk at rank 3 that Chroma's approximate index missed. The check passed, so **the default backend is now Qdrant**. Chroma stays supported.
+
+### Incremental index updates
+
+`data/index_manifest.json` stores a SHA-256 hash of every cleaned page view. Snippets are inlined during cleaning, so editing a snippet changes every page that imports it. `update_index.py` then works in five steps:
+
+1. Pull the docs.
+2. Clean and hash every view, and classify each one as added, changed, removed or unchanged.
+3. Delete changed and removed pages from every collection and from the parent store. Deleting by page matters because a page that shrinks would otherwise leave its old high-index chunks behind.
+4. Chunk and embed only the added and changed pages, through the same code as `ingest.py`.
+5. Rebuild BM25 and the language lists, which takes seconds, and report golden questions whose expected section disappeared.
+
+- **No-change run (`--no-pull`, right after `--init`):** 90 views unchanged, 0 embedding calls, 8.2 s.
+- **Dry run against the latest docs (89b6d1b, 2026-11-07):** 14 views added, 50 changed, 8 removed and 32 unchanged. Upstream split `graph-api` into several pages and removed `use-functional-api`, `choosing-apis`, `install` and `thinking-in-langgraph`. The dry run reads a temporary copy, so the checkout stays at the indexed commit (2caf896), and the update hasn't been applied.
+
+### Findings
+
+- **The demo chat routes language correctly but shows the follow-up gap.** "How do I do the same thing in TypeScript?" routes to JS and answers in TypeScript. With no rewrite, it answered about long-term stores instead of the previous turn's checkpoint history. The LLM rewriter also returned that message unchanged.
+- **Retrieval is unchanged on the new backend.** `eval_retrieval.py --k 5` gives R@5 0.933 and MRR 0.780 on recursive, as in Phase 4.
+
+### Layout
+
+- `src/documentor/language.py` builds the identifier lists and detects the language.
+- `src/documentor/conversation.py` has `Turn`, `Conversation` and `make_standalone()`.
+- `src/documentor/store/base.py` has the `VectorStore` protocol and `get_store()`, and `store/qdrant_store.py` has `QdrantStore`.
+- `src/documentor/ingest/updater.py` plans and applies incremental updates.
