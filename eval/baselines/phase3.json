@@ -1,0 +1,438 @@
+{
+  "timestamp": "2026-11-07T12:12:58",
+  "corpus_commit": "2caf896b09c0041dcbac0943774fb88c385314af",
+  "judge_model": "openai/gpt-oss-120b",
+  "calibrated": false,
+  "ragas_version": "0.4.3",
+  "summary": {
+    "recursive": {
+      "questions": 30,
+      "citation_validity": 1.0,
+      "invalid_total": 0,
+      "citation_coverage": 0.8214285714285714,
+      "cited_expected": [
+        "q01",
+        "q02",
+        "q04",
+        "q06",
+        "q08",
+        "q09",
+        "q10",
+        "q11",
+        "q12",
+        "q13",
+        "q15",
+        "x01",
+        "x02",
+        "x05",
+        "q16",
+        "q17",
+        "q18",
+        "q19",
+        "q20",
+        "q22",
+        "q23",
+        "q24",
+        "q25"
+      ],
+      "unit_coverage": 0.4215686274509804,
+      "tokens_per_answer": 2145,
+      "p50_generate_ms": 1163,
+      "oos_refusal_rate": 1.0,
+      "oos_refused": 5,
+      "oos_total": 5,
+      "false_refusal_rate": 0.06666666666666667,
+      "false_refusals": [
+        "q07",
+        "x04"
+      ],
+      "R@1": 0.6666666666666666,
+      "R@3": 0.8333333333333334,
+      "R@5": 0.8333333333333334,
+      "MRR": 0.7388888888888889,
+      "avg_tokens_returned": 1945,
+      "answer_correctness": null,
+      "faithfulness": 0.9379960317460317,
+      "answer_relevancy": null,
+      "context_precision": null
+    }
+  },
+  "grades": {
+    "recursive": {}
+  },
+  "rag_vs_closed": {},
+  "human_rag_vs_closed": {
+    "sheet": "phase2_20261103_1508_review.md",
+    "closed_book_outdated_api": 19,
+    "groups": {
+      "All questions": {
+        "RAG": {
+          "Y": 9,
+          "P": 8,
+          "N": 3,
+          "ungraded": 0
+        },
+        "Closed-book": {
+          "Y": 0,
+          "P": 1,
+          "N": 19,
+          "ungraded": 0
+        }
+      },
+      "post_cutoff: true": {
+        "RAG": {
+          "Y": 1,
+          "P": 3,
+          "N": 1,
+          "ungraded": 0
+        },
+        "Closed-book": {
+          "Y": 0,
+          "P": 0,
+          "N": 5,
+          "ungraded": 0
+        }
+      }
+    }
+  },
+  "per_question": [
+    {
+      "id": "q01",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q02",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q03",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q04",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q05",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q06",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q07",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": true
+        }
+      }
+    },
+    {
+      "id": "q08",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q09",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q10",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q11",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.8
+        }
+      }
+    },
+    {
+      "id": "q12",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.5714285714285714
+        }
+      }
+    },
+    {
+      "id": "q13",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q14",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q15",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.8666666666666667
+        }
+      }
+    },
+    {
+      "id": "x01",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.875
+        }
+      }
+    },
+    {
+      "id": "x02",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "x03",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.8888888888888888
+        }
+      }
+    },
+    {
+      "id": "x04",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": true
+        }
+      }
+    },
+    {
+      "id": "x05",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.8571428571428571
+        }
+      }
+    },
+    {
+      "id": "q16",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q17",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q18",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q19",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q20",
+      "post_cutoff": true,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q21",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.9333333333333333
+        }
+      }
+    },
+    {
+      "id": "q22",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.9
+        }
+      }
+    },
+    {
+      "id": "q23",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q24",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 1.0
+        }
+      }
+    },
+    {
+      "id": "q25",
+      "post_cutoff": null,
+      "configs": {
+        "recursive": {
+          "grade": null,
+          "refused": false,
+          "faithfulness": 0.5714285714285714
+        }
+      }
+    }
+  ],
+  "failed": [],
+  "skipped": [
+    "RAGAS metrics not run (--metrics): answer_correctness, answer_relevancy, context_precision.",
+    "Closed-book RAGAS: RAG vs closed-book comes from the Phase 2 human grades.",
+    "parent_child answers and RAGAS: see the strategy decision."
+  ],
+  "strategy_decision": "Answer-level strategy comparison deferred to Phase 4 (after the reranker). Current evidence is retrieval only, from the 20-question run on 2026-11-03: R@5 0.75 recursive vs 0.90 parent_child, with parent_child returning about 75% more tokens. Default stays recursive.",
+  "judge_tokens": 145782,
+  "answer_tokens": 74473,
+  "scoring_days": 2
+}

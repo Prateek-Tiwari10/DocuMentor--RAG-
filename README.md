@@ -151,13 +151,13 @@ Waiting means rate-limiter pauses and retry sleeps, recorded as `wait_ms`. It av
 
 Grades from the review sheet: Y = correct and runnable, P = partly right or missing a key step, N = wrong or uses an API that doesn't exist.
 
-Grades by Prateek for the closed-book answers and the q07 and x04 RAG answers. The other 18 RAG grades are by Claude, made by comparing each answer with its documentation section, without running the code.
+All grades are by Prateek, who graded the closed-book answers and the q07 and x04 RAG answers directly. For the other 18 RAG answers, Claude drafted a grade by comparing each answer with its documentation section, without running the code, and Prateek reviewed every draft on 2026-11-05, keeping 12 and changing 6.
 
 | Group | RAG Y | RAG P | RAG N | Closed-book Y | Closed-book P | Closed-book N | Closed-book outdated or invented API |
 |---|---|---|---|---|---|---|---|
-| All (20) | 10 | 7 | 3 | 0 | 1 | 19 | 19 |
-| `post_cutoff: true` (5) | 1 | 2 | 2 | 0 | 0 | 5 | 5 |
-| Untagged (15) | 9 | 5 | 1 | 0 | 1 | 14 | 14 |
+| All (20) | 9 | 8 | 3 | 0 | 1 | 19 | 19 |
+| `post_cutoff: true` (5) | 1 | 3 | 1 | 0 | 0 | 5 | 5 |
+| Untagged (15) | 8 | 5 | 2 | 0 | 1 | 14 | 14 |
 
 ### Findings
 
@@ -179,3 +179,85 @@ LLM responses are cached on disk in `data/cache/llm/`, keyed on the model, messa
 - `src/documentor/pipeline.py` has `answer()`, which logs every query to `data/logs/queries.jsonl`.
 - `src/documentor/evaluation.py` has the hit rule shared by both eval scripts.
 - `eval/oos.jsonl` has five questions the corpus can't answer.
+
+## Phase 3 — Evaluation
+
+Phase 3 adds a repeatable evaluation harness. One command scores retrieval, answers and refusals on a 30-question golden set, saves a baseline, and compares later runs against it. The judge for the LLM-scored metrics is `openai/gpt-oss-120b` on Groq, called through RAGAS.
+
+### Metrics
+
+| Metric | What it measures | Computed by |
+|---|---|---|
+| Faithfulness | Share of an answer's claims supported by the retrieved context | RAGAS 0.4.3 |
+| Answer correctness | Agreement with the reference answer | RAGAS 0.4.3 |
+| Answer relevancy | Whether the answer addresses the question | RAGAS 0.4.3 |
+| Context precision | Whether useful blocks rank above useless ones (reference-based) | RAGAS 0.4.3 |
+| Citation validity | Every `[n]` points at a block that exists | Own code (`evaluation/metrics.py`) |
+| Citation coverage | The answer cites the expected section | Own code |
+| Refusal correctness | Out-of-scope questions refused, in-scope ones answered | Own code |
+| Recall@k and MRR | The expected section is retrieved, and how high | Own code |
+
+RAGAS scores only answered in-scope questions. A refusal is scored by refusal correctness instead. RAGAS and its dependencies are in `requirements-eval.txt`, separate from the app's `requirements.txt`.
+
+### Golden set
+
+`eval/mini_golden.jsonl` now has 30 questions, each with a short `reference` answer that `build_golden.py` checks against its section (`auto_checked: true`). The 10 new questions, q16–q25, cover error codes, deployment config, testing, tracing and two `post_cutoff: true` features (q19 and q20) dated from the LangGraph changelog. They are marked `verified: false` because Claude wrote them and no person has checked them yet. Every new question's retrieval rank was recorded before it was added, and no question was chosen or reworded because of its rank.
+
+### Judge calibration
+
+`calibrate_judge.py` scores the Phase 2 graded answers with each candidate judge, searches for the answer-correctness cut-offs that best match the human Y/P/N grades, and trusts the judge only at ≥ 80% agreement and Cohen's kappa ≥ 0.60.
+
+| Judge | Cut-offs (Y / P) | Agreement | Kappa | Answers |
+|---|---|---|---|---|
+| `openai/gpt-oss-120b` | 0.80 / 0.70 | 71% | 0.50 | 38 |
+| `openai/gpt-oss-20b` | 0.85 / 0.75 | 66% | 0.42 | 35 (3 refused to score) |
+
+Neither judge reaches the bar, so `calibrated: false`. `gpt-oss-120b` is kept as the judge because it agrees more often and never refused to score. Agreement splits sharply by answer type: 95% on the 20 closed-book answers, which are almost all N, but only 44% (kappa 0.10) on the 18 answered RAG answers. Answer correctness is therefore reported but not used for any decision.
+
+The labels are the Phase 2 grades: Prateek graded the closed-book answers himself, and for the RAG answers he reviewed Claude's drafts. At 38 answers, one disagreement moves agreement by about 2.6 points.
+
+### Results
+
+Baseline run on 2026-11-07, `recursive`, dense retrieval (the default at the time), 30 golden and 5 out-of-scope questions. To save Groq budget, this run scored faithfulness only. The other three RAGAS metrics, closed-book RAGAS and `parent_child` answers were skipped.
+
+| Config | Faithfulness | Citation validity | Citation coverage | Refusal correctness | R@5 / MRR | Tokens per answer | p50 generate ms |
+|---|---|---|---|---|---|---|---|
+| recursive | 0.938 | 1.000 | 0.821 (23 of 28) | 5/5 out-of-scope refused, 2 false refusals (q07, x04) | 0.83 / 0.739 | 2,145 | 1,163 |
+
+- **Faithfulness:** 19 of 28 answers score 1.0. The lowest are q12 and q25 at 0.57, and q11 at 0.80.
+- **Citation coverage misses:** q03, q05, q14, x03 and q21 answered without citing their expected section.
+- **Reproducible:** rerunning from the cache with `--compare` against the baseline showed no changes.
+- **Cost:** 145,782 judge tokens and 74,473 answer tokens, spread over two days of Groq's free daily budget.
+
+### Strategy decision
+
+The default stays `recursive`. The answer-level comparison with `parent_child` was deferred to Phase 4, after the reranker. The evidence so far is retrieval only: `parent_child` finds more (R@5 0.90 against 0.75 on the 20-question set) but returns about 75% more tokens.
+
+### RAG vs closed-book
+
+From the Phase 2 human grades, not from the judge:
+
+| Group | RAG Y / P / N | Closed-book Y / P / N |
+|---|---|---|
+| All questions (20) | 9 / 8 / 3 | 0 / 1 / 19 |
+| `post_cutoff: true` (5) | 1 / 3 / 1 | 0 / 0 / 5 |
+
+19 of 20 closed-book answers used an outdated or invented API.
+
+### Run
+
+```bash
+pip install -r requirements-eval.txt
+python scripts/build_golden.py
+python scripts/calibrate_judge.py
+python scripts/eval_all.py --strategies recursive --metrics faithfulness --save-baseline
+python scripts/eval_all.py --strategies recursive --compare eval/baselines/phase3.json
+python scripts/eval_all.py --no-ragas              # own metrics only, no judge calls
+```
+
+`--compare` prints each metric old → new, the questions that got better or worse, and labels a one-question change "within noise". Judge scores are cached in `data/cache/ragas/`, so a rerun only pays for new work. When Groq's daily token budget runs out, the run stops with exit code 3 and prints "Daily Groq budget used up. Rerun the same command after …". Rerunning resumes from the cache. Groq's daily limit refills gradually, not at a fixed reset time, so a rerun right after the printed time fits only a few more calls.
+
+### Layout
+
+- `src/documentor/evaluation/` is now a package: `golden.py` loads and checks the golden set, `metrics.py` has the own metrics, `ragas_eval.py` has the RAGAS scorer, cache and budget stop, `agreement.py` has agreement, kappa and the cut-off search, and `report.py` builds the report and the comparison.
+- `scripts/eval_all.py` is the one evaluation command. `eval/baselines/phase3.json` is the saved baseline.
