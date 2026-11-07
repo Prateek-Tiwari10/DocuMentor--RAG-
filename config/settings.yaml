@@ -62,3 +62,28 @@ generation:
 
 logging:
   query_log: data/logs/queries.jsonl
+
+evaluation:
+  judge_candidates: [openai/gpt-oss-20b, openai/gpt-oss-120b]
+  judge_model: openai/gpt-oss-120b              # set by Step 4 calibration
+  judge_base_url: https://api.groq.com/openai/v1
+  judge_reasoning_effort: low    # if the RAGAS LLM wrapper can pass it through
+  judge_max_tokens: 3000         # 2048 truncated long closed-book answers; prompt + this must stay under judge_tpm_limit
+  judge_temperature: 0
+  judge_max_retries: 6
+  judge_tpm_limit: 8000          # per-minute limit; waits, never stops the run
+  judge_tokens_per_day: 200000   # Groq per-day limit, used for the projection
+  judge_min_requests_left: 5     # stop before the 1,000 requests/day limit
+  budget_max_wait_s: 120         # a longer retry wait means a per-day limit
+  cutoffs: {Y: 0.8, P: 0.7}    # set by Step 4 calibration
+  calibrated: false               # set by Step 4 calibration
+  trust_agreement: 0.80
+  trust_kappa: 0.60
+  ragas_cache_path: data/cache/ragas
+  golden_path: eval/mini_golden.jsonl
+  oos_path: eval/oos.jsonl
+  human_sheet: eval/results/phase2_20261103_1508_review.md
+  baseline_path: eval/baselines/phase3.json
+  strategy_rule: {min_question_gain: 2, max_faithfulness_drop: 0.05}
+  strategy_deferred: "Answer-level strategy comparison deferred to Phase 4 (after the reranker). Current evidence is retrieval only, from the 20-question run on 2026-11-03: R@5 0.75 recursive vs 0.90 parent_child, with parent_child returning about 75% more tokens."
+  daily_budget_days_max: 3

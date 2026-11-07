@@ -8,6 +8,7 @@ from datetime import datetime
 
 from documentor.config import load_config, resolve
 from documentor.evaluation import expected_entries, is_hit, load_jsonl
+from documentor.evaluation.metrics import cited_blocks
 from documentor.generation.llm import get_llm
 from documentor.generation.prompt import language_name
 from documentor.pipeline import answer
@@ -28,11 +29,6 @@ def percentile(values: list[float], p: float) -> float | None:
         return None
     ordered = sorted(values)
     return ordered[max(0, math.ceil(p * len(ordered)) - 1)]
-
-
-def cited_blocks(a: dict) -> list[dict]:
-    cited = {s["n"] for s in a["sources"]}
-    return [b for b in a["blocks"] if b["n"] in cited]
 
 
 def compute_metrics(golden: list[dict], answers: dict, oos: list[dict]) -> dict:
@@ -240,7 +236,7 @@ def main() -> None:
     golden = load_jsonl(resolve(args.golden))
     unverified = [q["id"] for q in golden if not q.get("verified")]
     if unverified:
-        print(f"WARNING: {len(unverified)} unverified questions: {', '.join(unverified)}\n")
+        print(f"Note: {len(unverified)} of {len(golden)} questions have verified: false.\n")
     llm = get_llm(cfg)
     use_cache = not args.no_cache
 

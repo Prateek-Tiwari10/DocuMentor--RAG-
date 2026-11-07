@@ -1,21 +1,13 @@
 import argparse
 import json
-import statistics
 from datetime import datetime
 
 from documentor.config import collection_name, load_config, resolve
 from documentor.evaluation import expected_entries, first_hit_rank, load_jsonl
+from documentor.evaluation.metrics import summarize_ranks
 from documentor.retrieval.dense import search
 
 STRATEGIES = ["recursive", "parent_child"]
-
-
-def summarize(ranks: list[int | None], tokens: list[int]) -> dict:
-    n = len(ranks)
-    recall = lambda k: sum(1 for r in ranks if r and r <= k) / n
-    return {"R@1": recall(1), "R@3": recall(3), "R@5": recall(5),
-            "MRR": sum(1 / r for r in ranks if r) / n,
-            "avg_tokens_returned": round(statistics.mean(tokens))}
 
 
 def deep_rank(q: dict, strategy: str, n: int, model: str) -> int | None:
@@ -42,7 +34,7 @@ def main() -> None:
     golden = load_jsonl(resolve(args.golden))
     unverified = [q["id"] for q in golden if not q.get("verified")]
     if unverified:
-        print(f"WARNING: {len(unverified)} unverified questions: {', '.join(unverified)}\n")
+        print(f"Note: {len(unverified)} of {len(golden)} questions have verified: false.\n")
 
     per_question = {q["id"]: {"question": q["question"], "expected": [e["slug"] for e in expected_entries(q)]}
                     for q in golden}
@@ -60,7 +52,7 @@ def main() -> None:
             }
             if args.deep and not rank:
                 per_question[q["id"]][strategy]["deep_rank"] = deep_rank(q, strategy, args.deep, model)
-        summary[strategy] = summarize(ranks, tokens)
+        summary[strategy] = summarize_ranks(ranks, tokens)
 
     print(f"\n{'strategy':<14} {'R@1':>5} {'R@3':>5} {'R@5':>5} {'MRR':>6}  avg_tokens_returned")
     for strategy, s in summary.items():
