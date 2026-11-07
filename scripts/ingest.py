@@ -9,6 +9,7 @@ from documentor.config import collection_name, load_config, resolve
 from documentor.embed.embedder import Embedder
 from documentor.ingest import chunker
 from documentor.ingest.loader import load_pages
+from documentor.retrieval.bm25 import build_and_save
 from documentor.store.chroma_store import ChromaStore
 from documentor.store.parent_store import ParentStore
 
@@ -90,6 +91,9 @@ def main() -> None:
         store.add(chunks, embeddings)
         if parents:
             ParentStore(resolve(cfg["store"]["parents_path"]) / f"{name}.json").save(parents, merge=not args.reset)
+        for language in languages:  # so a re-ingest never leaves a stale keyword index
+            index, seconds = build_and_save(store, language, cfg, manifest["commit"])
+            print(f"bm25 {language}: {index.meta['chunk_count']:,} chunks, {index.vocabulary_size:,} terms, {seconds:.2f}s")
 
         per_language = [language_stats(strategy, lang, pages, chunks, parents) for lang in languages]
         for stats in per_language:

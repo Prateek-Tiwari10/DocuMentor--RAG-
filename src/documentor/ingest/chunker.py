@@ -202,8 +202,14 @@ def _id(*parts) -> str:
     return hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()[:16]
 
 
-def _embed_text(text: str, heading_path: list[str], prepend: bool) -> str:
-    return f"{' > '.join(heading_path)}\n\n{text}" if prepend else text
+def make_embed_text(title: str, heading_path: list[str] | str, text: str, prepend_headings: bool) -> str:
+    """The text dense search embeds and BM25 indexes. A chunk's heading path already starts with the page title."""
+    if not prepend_headings:
+        return text
+    path = heading_path if isinstance(heading_path, str) else " > ".join(heading_path)
+    if title and not path.startswith(title):
+        path = f"{title} > {path}" if path else title
+    return f"{path}\n\n{text}"
 
 
 def _record(page: dict, chunk: dict, strategy: str, index: int, parent_id: str | None,
@@ -211,7 +217,7 @@ def _record(page: dict, chunk: dict, strategy: str, index: int, parent_id: str |
     return {
         "id": _id(strategy, page["language"], page["slug"], index),
         "text": chunk["text"],
-        "embed_text": _embed_text(chunk["text"], chunk["heading_path"], prepend),
+        "embed_text": make_embed_text(page["title"], chunk["heading_path"], chunk["text"], prepend),
         "page_slug": page["slug"],
         "language": page["language"],
         "url": page["url"],

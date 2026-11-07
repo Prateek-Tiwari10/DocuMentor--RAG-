@@ -51,5 +51,20 @@ class ChromaStore:
             hits.append({**meta, "text": doc, "score": 1 - dist})
         return hits
 
+    def _rows(self, res: dict) -> list[dict]:
+        return [{**meta, "id": chunk_id, "text": doc}
+                for chunk_id, doc, meta in zip(res["ids"], res["documents"], res["metadatas"])]
+
+    def by_language(self, language: str) -> list[dict]:
+        return self._rows(self.collection.get(where={"language": language}, include=["documents", "metadatas"]))
+
+    def by_ids(self, ids: list[str]) -> list[dict]:
+        if not ids:
+            return []
+        return self._rows(self.collection.get(ids=ids, include=["documents", "metadatas"]))
+
     def count(self) -> int:
         return self.collection.count()
+
+    def count_language(self, language: str) -> int:
+        return len(self.collection.get(where={"language": language}, include=[])["ids"])
