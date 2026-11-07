@@ -37,6 +37,11 @@ store:
   parents_path: data/parents
   batch_size: 1000
 
+language:
+  sticky: true                  # a neutral follow-up keeps the conversation's language
+  vocab_path: data/language_vocab.json
+  min_identifier_count: 2       # an identifier must appear at least this often in one view
+
 retrieval:
   top_k: 5
   strategy: recursive            # default for search() and the pipeline
