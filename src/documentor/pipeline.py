@@ -4,9 +4,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from documentor.config import load_config, resolve
+from documentor.conversation import Conversation, make_standalone
 from documentor.generation.citations import parse_answer, sources_for
 from documentor.generation.llm import LLM, get_llm
 from documentor.generation.prompt import build_context, build_messages
+from documentor.language import detect_language
 from documentor.retrieval import TRACE_FIELDS
 
 
@@ -28,6 +30,11 @@ class Answer:
     model: str
     reasoning: str | None
     retrieved: list[dict]     # top-k ids and scores, before the context budget
+    standalone_question: str | None = None   # what retrieval and generation saw
+    language_reason: str | None = None
+    rewrite_mode: str | None = None
+    rewrite_ms: int = 0
+    rewrite_fallback: bool = False
 
 
 _llm: LLM | None = None
@@ -46,9 +53,17 @@ def ms(start: float) -> int:
 
 def answer(question: str, language: str | None = None, strategy: str | None = None, k: int | None = None,
            llm: LLM | None = None, search_fn=None, show_reasoning: bool = False,
-           use_cache: bool = True, cfg: dict | None = None) -> Answer:
+           use_cache: bool = True, cfg: dict | None = None, conversation: Conversation | None = None,
+           rewrite_llm: LLM | None = None) -> Answer:
+    """With a conversation: route the language and rewrite a follow-up into a standalone question first.
+    Without one, this is the Phase 4 single-question path. History never reaches the answer model."""
     cfg = cfg or load_config()
     gen = cfg["generation"]
+    standalone, reason, info = question, "override" if language else "default", None
+    if conversation is not None:
+        language, reason = detect_language(question, previous=conversation.language,
+                                           override=language or conversation.override, cfg=cfg)
+        standalone, info = make_standalone(question, conversation, cfg["conversation"]["rewrite"], llm=rewrite_llm, cfg=cfg)
     language = language or cfg["corpus"]["default_language"]
     strategy = strategy or cfg["retrieval"]["strategy"]
     k = k or cfg["retrieval"]["top_k"]
@@ -56,14 +71,16 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
         from documentor.retrieval.dense import search as search_fn
 
     start = time.perf_counter()
-    results = search_fn(question, strategy, k=k, language=language)
+    results = search_fn(standalone, strategy, k=k, language=language)
     retrieve_ms = ms(start)
     retrieved = [{"id": r.get("id") or r.get("parent_id"), "score": r.get("score"),
                   "heading_path": r.get("heading_path"), "page_slug": r.get("page_slug"),
                   **{f: r.get(f) for f in TRACE_FIELDS}} for r in results]
 
     base = dict(question=question, language=language, strategy=strategy, invalid_citations=[],
-                uncited=False, reasoning=None, retrieved=retrieved)
+                uncited=False, reasoning=None, retrieved=retrieved, standalone_question=standalone,
+                language_reason=reason, rewrite_mode=info["mode"] if info else None,
+                rewrite_ms=info["rewrite_ms"] if info else 0, rewrite_fallback=bool(info and info["fallback"]))
     min_score = gen.get("min_score")
     if min_score is not None and (not results or results[0]["score"] < min_score):
         result = Answer(**base, text=gen["refusal_message"], refused=True, refusal_reason="low_score",
@@ -74,7 +91,7 @@ def answer(question: str, language: str | None = None, strategy: str | None = No
         return result
 
     context, blocks = build_context(results, gen["context_max_tokens"], gen["budget_encoding"])
-    messages = build_messages(question, context, language)
+    messages = build_messages(standalone, context, language)
     llm = llm or default_llm(cfg)
     gen_start = time.perf_counter()
     out = llm.complete(messages, show_reasoning=show_reasoning, use_cache=use_cache)

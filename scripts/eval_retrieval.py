@@ -63,18 +63,21 @@ def run_config(num: int, strategy: str, mode: str, which: str | None, golden: li
 
 
 def choose_config(rows: list[dict], cfg: dict) -> tuple[dict, list[str]]:
-    """Keep the simpler setup unless a more expensive one is clearly better. Each row is compared with the current best."""
+    """Keep the simpler setup unless a more expensive one is clearly better. Each row is compared with the current best.
+    A row can carry its own latency cap as `cap_ms`; a reranking row without one gets the reranker cap."""
     gain_needed = cfg["decision"]["min_question_gain"]
     mrr_needed = cfg["decision"]["min_mrr_gain"]
-    cap = cfg["retrieval"]["rerank_max_p95_ms"]
     best = rows[0]
     reasons = [f"{best['label']}: starting point."]
     for row in rows[1:]:
         gain = row["ctx_hits"] - best["ctx_hits"]
         mrr = round(row["MRR"] - best["MRR"], 9)
-        numbers = f"R@ctx {gain:+d} questions, MRR {mrr:+.3f} against {best['label']}"
-        if row["reranker"] and row["p95_ms"] > cap:
-            reasons.append(f"{row['label']}: rejected (CPU p95 {row['p95_ms']:,.0f} ms is over the {cap:,} ms cap; {numbers})")
+        unit = row.get("unit", "questions")
+        numbers = f"R@ctx {gain:+d} {unit}, MRR {mrr:+.3f} against {best['label']}"
+        cap = row.get("cap_ms") or (cfg["retrieval"]["rerank_max_p95_ms"] if row.get("reranker") else None)
+        if cap is not None and row["p95_ms"] is not None and row["p95_ms"] > cap:
+            where = "CPU p95" if row.get("reranker") else "p95"
+            reasons.append(f"{row['label']}: rejected ({where} {row['p95_ms']:,.0f} ms is over the {cap:,} ms cap; {numbers})")
         elif gain <= -gain_needed or mrr <= -mrr_needed:
             reasons.append(f"{row['label']}: rejected (lower; {numbers})")
         elif gain < gain_needed and mrr < mrr_needed:

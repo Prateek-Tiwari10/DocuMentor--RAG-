@@ -42,6 +42,17 @@ language:
   vocab_path: data/language_vocab.json
   min_identifier_count: 2       # an identifier must appear at least this often in one view
 
+conversation:
+  rewrite: none                 # none | concat | llm; Step 2 sets the winner
+  rewrite_model: openai/gpt-oss-20b
+  rewrite_reasoning_effort: low
+  rewrite_max_tokens: 400       # includes reasoning tokens
+  rewrite_temperature: 0
+  rewrite_max_p95_ms: 1500
+  rewrite_tpm_limit: 8000       # gpt-oss-20b per-minute limit, separate from the answer model's
+  history_turns: 2
+  history_answer_tokens: 300
+
 retrieval:
   top_k: 5
   strategy: recursive            # default for search() and the pipeline
