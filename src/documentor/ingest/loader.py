@@ -26,8 +26,15 @@ def page_slug(path: Path, cfg: dict) -> str:
     return path.relative_to(oss_dir).with_suffix("").as_posix()
 
 
+def write_view(clean_dir: Path, language: str, slug: str, text: str) -> None:
+    out = clean_dir / language / f"{slug}.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+
+
 def load_pages(cfg: dict, languages: list[str] | None = None,
-               count_tokens: Callable[[str], int] | None = None) -> list[dict]:
+               count_tokens: Callable[[str], int] | None = None, write: bool = True) -> list[dict]:
+    """Clean every page into its language views. `write=False` is for planning an update without touching data/clean."""
     corpus = cfg["corpus"]
     languages = languages or corpus["languages"]
     raw_dir = resolve(corpus["raw_dir"])
@@ -43,9 +50,8 @@ def load_pages(cfg: dict, languages: list[str] | None = None,
             if count_tokens and count_tokens(text) < min_tokens:
                 log.warning("skip %s view of %s: under %d tokens", language, slug, min_tokens)
                 continue
-            out = clean_dir / language / f"{slug}.md"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(text, encoding="utf-8")
+            if write:
+                write_view(clean_dir, language, slug, text)
             pages.append({
                 "path": path.relative_to(raw_dir).as_posix(),
                 "slug": slug,

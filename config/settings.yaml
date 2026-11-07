@@ -40,6 +40,9 @@ store:
   parents_path: data/parents
   batch_size: 1000
 
+index:
+  manifest_path: data/index_manifest.json
+
 language:
   sticky: true                  # a neutral follow-up keeps the conversation's language
   vocab_path: data/language_vocab.json

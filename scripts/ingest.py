@@ -9,8 +9,10 @@ from documentor.config import collection_name, load_config, resolve
 from documentor.embed.embedder import Embedder
 from documentor.ingest import chunker
 from documentor.ingest.loader import load_pages
+from documentor.ingest.updater import manifest_from_index, save_manifest
+from documentor.language import build_language_vocab
 from documentor.retrieval.bm25 import build_and_save
-from documentor.store.chroma_store import ChromaStore
+from documentor.store.base import get_store
 from documentor.store.parent_store import ParentStore
 
 STRATEGIES = ["recursive", "parent_child"]
@@ -27,18 +29,6 @@ def parse_args(cfg: dict) -> argparse.Namespace:
 
 def avg(values: list[int]) -> int:
     return round(statistics.mean(values)) if values else 0
-
-
-def chunk_pages(pages: list[dict], strategy: str, cfg: dict) -> tuple[list[dict], list[dict]]:
-    chunks, parents = [], []
-    for page in pages:
-        if strategy == "recursive":
-            chunks += chunker.chunk_recursive(page, cfg)
-        else:
-            children, page_parents = chunker.chunk_parent_child(page, cfg)
-            chunks += children
-            parents += page_parents
-    return chunks, parents
 
 
 def language_stats(strategy: str, language: str, pages: list[dict], chunks: list[dict],
@@ -80,10 +70,9 @@ def main() -> None:
 
     for strategy in strategies:
         t0 = time.time()
-        chunks, parents = chunk_pages(pages, strategy, cfg)
+        chunks, parents = chunker.chunk_pages(pages, strategy, cfg)
         name = collection_name(strategy, model)
-        store = ChromaStore(resolve(cfg["store"]["chroma_path"]), name,
-                            batch_size=cfg["store"].get("batch_size", 1000))
+        store = get_store(cfg, name)
         if args.reset:
             store.reset()
         print(f"[{strategy}] embedding {len(chunks):,} chunks into '{name}'")
@@ -103,6 +92,14 @@ def main() -> None:
         out = {"commit": manifest["commit"], "model": model, "device": embedder.device,
                "collection": name, "time_s": elapsed, "languages": per_language}
         resolve(f"data/ingest_stats_{strategy}.json").write_text(json.dumps(out, indent=2))
+    if not args.fast:  # the manifest and language lists describe the main bge-m3 index
+        stores = {s: get_store(cfg, collection_name(s, model)) for s in STRATEGIES}
+        parent_path = resolve(cfg["store"]["parents_path"]) / f"{collection_name('parent_child', model)}.json"
+        index_manifest, _ = manifest_from_index(pages, stores, {"parent_child": ParentStore(parent_path)}, manifest["commit"])
+        save_manifest(resolve(cfg["index"]["manifest_path"]), index_manifest)
+        vocab = build_language_vocab(cfg)
+        print(f"manifest: {len(index_manifest['pages'])} views  language lists: "
+              f"{len(vocab['python_only']):,} python-only, {len(vocab['js_only']):,} js-only")
     print(f"total_time={round(time.time() - start)}s  device={embedder.device}")
 
 

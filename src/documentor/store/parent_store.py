@@ -18,6 +18,19 @@ class ParentStore:
             self._parents = json.loads(self.path.read_text()) if self.path.exists() else {}
         return self._parents
 
+    def remove_page(self, page_slug: str, language: str) -> int:
+        parents = self._load()
+        gone = [pid for pid, p in parents.items() if p.get("page_slug") == page_slug and p.get("language") == language]
+        for pid in gone:
+            del parents[pid]
+        if gone:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(parents, ensure_ascii=False))
+        return len(gone)
+
+    def count_page(self, page_slug: str, language: str) -> int:
+        return sum(p.get("page_slug") == page_slug and p.get("language") == language for p in self._load().values())
+
     def get(self, parent_id: str) -> dict | None:
         return self._load().get(parent_id)
 

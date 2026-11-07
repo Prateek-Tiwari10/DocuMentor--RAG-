@@ -287,3 +287,16 @@ def chunk_parent_child(page: dict, cfg: dict) -> tuple[list[dict], list[dict]]:
                 children.append(_record(page, ch, "parent_child", len(children), parent_id,
                                         c["prepend_headings"]))
     return children, parents
+
+
+def chunk_pages(pages: list[dict], strategy: str, cfg: dict) -> tuple[list[dict], list[dict]]:
+    """All chunks (and parents, for parent_child) of these pages. Shared by ingest.py and the index updater."""
+    chunks, parents = [], []
+    for page in pages:
+        if strategy == "recursive":
+            chunks += chunk_recursive(page, cfg)
+        else:
+            children, page_parents = chunk_parent_child(page, cfg)
+            chunks += children
+            parents += page_parents
+    return chunks, parents
